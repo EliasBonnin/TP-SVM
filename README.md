@@ -22,22 +22,31 @@ Se evalúan 3 configuraciones de kernel, todas con `class_weight='balanced'` deb
 
 | Kernel | Geometría de la Frontera | Falsos Positivos (FP) | Falsos Negativos (FN) | Recall (Legendarios) | F1-Score | Accuracy |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **RBF (Base)** | Campanas gaussianas locales (dimensión infinita) | 24 | 5 | 79.2% | 0.567 | 88.9% |
-| **Lineal** | Hiperplano plano en espacio original | 37 | **1** | **95.8%** | 0.548 | 85.4% |
-| **Polinomial (Grado 3)** | Curvas por interacciones de variables | **24** | **3** | **87.5%** | **0.609** | **89.7%** |
+| **RBF (Base)** | Campanas gaussianas locales (espacio de dimensión infinita) | 24 | 5 | 79.2% | 0.567 | 88.9% |
+| **Lineal** | Hiperplano plano en el espacio original | 37 | **1** | **95.8%** | 0.548 | 85.4% |
+| **Polinomial (Grado 3)** | Curvas suaves por combinaciones multiplicativas de variables | **24** | **3** | **87.5%** | **0.609** | **89.7%** |
 
 ---
 
-## Conclusiones para la Defensa en Clase
+## Métricas Clave y Conclusiones para la Defensa en Clase
 
-* **Lineal:** Es el modelo con mayor **Recall (95.8%)** (casi no se le escapan legendarios, solo 1 FN), pero tiene el costo de acumular muchos **Falsos Positivos (37)**.
-* **Polinomial (Grado 3):** Es el modelo con **mejor desempeño global**, logrando el **F1-Score más alto (0.609)** y un **Accuracy de 89.7%**, reduciendo los falsos negativos a solo 3 sin aumentar los falsos positivos.
+* **¿Por qué no guiarse solo por Accuracy?** Al haber solo un ~9% de Pokémon legendarios, un clasificador ingenuo tendría 91% de exactitud sin predecir ningún legendario.
+* **Recall (Sensibilidad):** El **Kernel Lineal** obtiene el valor más alto (**95.8%**, solo 1 falso negativo), ideal si la prioridad absoluta es no perder ningún legendario a costa de falsas alarmas (37 falsos positivos).
+* **F1-Score (Balance óptimo):** El **Kernel Polinomial de grado 3** es el **mejor modelo global** con un F1 de **0.609**, reduciendo los falsos negativos a solo 3 y manteniendo bajos los falsos positivos (24).
 
 ---
 
-## Ejecución
+## Visualización Gráfica
+
+El script genera automáticamente el archivo `evaluacion_kernels_comparativa.png` que reúne las matrices de confusión de cada kernel y la comparación directa de sus curvas ROC:
+
+![Comparativa de Kernels](evaluacion_kernels_comparativa.png)
+
+---
+
+## Ejecución del Proyecto
 
 ```bash
 python3 practicaSVM.py
 ```
-El script imprimirá en consola las matrices de confusión individuales, los reportes de clasificación y la **tabla resumen comparativa**. Además, generará y guardará la imagen con las 3 matrices visuales y la comparación de curvas ROC en `evaluacion_kernels_comparativa.png`.
+El script mostrará las métricas paso a paso en la terminal, imprimirá la tabla comparativa final y abrirá la visualización gráfica de resultados.
