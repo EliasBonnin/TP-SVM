@@ -8,6 +8,10 @@ from sklearn.metrics import (
     confusion_matrix,
     ConfusionMatrixDisplay,
     RocCurveDisplay,
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
 )
 
 # ==============================================================================
@@ -48,9 +52,9 @@ X = df_limpio[features].copy()
 y = df_limpio[target].astype(int)
 
 # ==============================================================================
-# PASO 5: División en conjuntos de Entrenamiento (Train) y Prueba (Test)
+# PASO 5: División en Entrenamiento (Train) y Prueba (Test)
 # ==============================================================================
-# Usamos stratify=y para mantener la misma proporción de legendarios en ambos conjuntos
+# stratify=y preserva la proporción del target (~9% legendarios)
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
@@ -66,69 +70,98 @@ print(f"   - Prueba (Test): {X_test.shape[0]} muestras")
 # ==============================================================================
 # PASO 6: Escalado de características (StandardScaler)
 # ==============================================================================
-# ¡Clave en ML!: fit_transform() SOLO en Train. En Test únicamente transform()
-# para evitar fuga de información (data leakage).
+# fit_transform() SOLO en Train, transform() en Test (evita data leakage)
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
-
 print("⚖️  Características escaladas correctamente (media ~0, varianza ~1).")
 
 # ==============================================================================
-# PASO 7: Definición y entrenamiento del modelo SVM
+# PASO 7: FASE 3 - Entrenamiento y evaluación de diferentes kernels
 # ==============================================================================
-# Usamos class_weight='balanced' para compensar que hay muchos menos legendarios
-modelo_svm = SVC(kernel="rbf", class_weight="balanced", random_state=42)
-modelo_svm.fit(X_train_scaled, y_train)
+modelos = {
+    "RBF (Base)": SVC(kernel="rbf", class_weight="balanced", random_state=42),
+    "Lineal": SVC(kernel="linear", class_weight="balanced", random_state=42),
+    "Polinomial (Grado 3)": SVC(kernel="poly", degree=3, class_weight="balanced", random_state=42),
+}
 
-print("🤖 Modelo SVM entrenado con éxito.")
+target_names = ["No Legendario (0)", "Legendario (1)"]
+predicciones = {}
+tabla_metricas = []
+
+for nombre, modelo in modelos.items():
+    print("\n" + "=" * 60)
+    print(f"🔬 ENTRENANDO Y EVALUANDO KERNEL: {nombre}")
+    print("=" * 60)
+
+    # Entrenamiento
+    modelo.fit(X_train_scaled, y_train)
+
+    # Predicción
+    y_pred = modelo.predict(X_test_scaled)
+    predicciones[nombre] = y_pred
+
+    # Matriz de confusión y reporte en texto
+    cm = confusion_matrix(y_test, y_pred)
+    tn, fp, fn, tp = cm.ravel()
+
+    print(f"Matriz de Confusión ({nombre}):")
+    print(cm)
+    print(f"\nReporte de Clasificación ({nombre}):")
+    print(classification_report(y_test, y_pred, target_names=target_names))
+
+    # Almacenar métricas para la tabla comparativa
+    tabla_metricas.append({
+        "Kernel": nombre,
+        "Accuracy": round(accuracy_score(y_test, y_pred), 3),
+        "Precision": round(precision_score(y_test, y_pred), 3),
+        "Recall": round(recall_score(y_test, y_pred), 3),
+        "F1-Score": round(f1_score(y_test, y_pred), 3),
+        "Falsos Positivos (FP)": fp,
+        "Falsos Negativos (FN)": fn,
+    })
 
 # ==============================================================================
-# PASO 8: Evaluación numérica del modelo
+# PASO 8: Tabla resumen comparativa
 # ==============================================================================
-y_pred = modelo_svm.predict(X_test_scaled)
-
-print("\n" + "=" * 55)
-print("MATRIZ DE CONFUSIÓN")
-print("=" * 55)
-print(confusion_matrix(y_test, y_pred))
-
-print("\n" + "=" * 55)
-print("REPORTE DE CLASIFICACIÓN")
-print("=" * 55)
-print(classification_report(y_test, y_pred, target_names=["No Legendario (0)", "Legendario (1)"]))
+df_comparativa = pd.DataFrame(tabla_metricas)
+print("\n" + "=" * 70)
+print("📊 RESUMEN COMPARATIVO DE KERNELS (FASE 3)")
+print("=" * 70)
+print(df_comparativa.to_string(index=False))
+print("=" * 70)
 
 # ==============================================================================
-# PASO 9: Visualización gráfica de resultados
+# PASO 9: Visualización gráfica comparativa
 # ==============================================================================
-fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+# 3 matrices de confusión + 1 gráfico con curvas ROC superpuestas
+fig, axes = plt.subplots(1, 4, figsize=(22, 5))
 
-# 1. Gráfico de Matriz de Confusión
-ConfusionMatrixDisplay.from_predictions(
-    y_test,
-    y_pred,
-    display_labels=["No Legendario", "Legendario"],
-    cmap="Blues",
-    ax=axes[0],
-)
-axes[0].set_title("Matriz de Confusión Visual")
+for idx, (nombre, modelo) in enumerate(modelos.items()):
+    y_pred = predicciones[nombre]
+    cm = confusion_matrix(y_test, y_pred)
 
-# 2. Curva ROC (Evaluación de discriminación global)
-RocCurveDisplay.from_estimator(
-    modelo_svm,
-    X_test_scaled,
-    y_test,
-    name="SVM (RBF)",
-    ax=axes[1],
-    color="darkorange",
-)
-axes[1].plot([0, 1], [0, 1], "k--", label="Clasificador aleatorio (AUC = 0.50)")
-axes[1].set_title("Curva ROC")
-axes[1].grid(True, linestyle="--", alpha=0.5)
-axes[1].legend()
+    # Matriz de Confusión visual para cada kernel
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["No Leg.", "Leg."])
+    disp.plot(ax=axes[idx], cmap="Blues", colorbar=False)
+    axes[idx].set_title(f"MC: {nombre}")
+
+    # Curvas ROC superpuestas en el 4to subplot
+    RocCurveDisplay.from_estimator(
+        modelo,
+        X_test_scaled,
+        y_test,
+        name=nombre,
+        ax=axes[3]
+    )
+
+axes[3].plot([0, 1], [0, 1], "k--", label="Aleatorio (AUC = 0.50)")
+axes[3].set_title("Comparación de Curvas ROC")
+axes[3].grid(True, linestyle="--", alpha=0.5)
+axes[3].legend()
 
 plt.tight_layout()
-archivo_grafico = "evaluacion_svm.png"
+archivo_grafico = "evaluacion_kernels_comparativa.png"
 plt.savefig(archivo_grafico, dpi=200)
-print(f"\n📈 Gráficos guardados exitosamente como '{archivo_grafico}'.")
+print(f"\n📈 Gráficos comparativos guardados como '{archivo_grafico}'.")
 plt.show()
