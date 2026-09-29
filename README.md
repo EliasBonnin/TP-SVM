@@ -28,7 +28,7 @@ Se evalúan 3 configuraciones de kernel, todas con `class_weight='balanced'` deb
 
 ---
 
-## Métricas Clave y Conclusiones para la Defensa en Clase
+## Métricas Clave y Conclusiones 
 
 * **¿Por qué no guiarse solo por Accuracy?** Al haber solo un ~9% de Pokémon legendarios, un clasificador ingenuo tendría 91% de exactitud sin predecir ningún legendario.
 * **Recall (Sensibilidad):** El **Kernel Lineal** obtiene el valor más alto (**95.8%**, solo 1 falso negativo), ideal si la prioridad absoluta es no perder ningún legendario a costa de falsas alarmas (37 falsos positivos).

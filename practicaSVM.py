@@ -1,3 +1,5 @@
+import numpy as np
+from matplotlib.colors import ListedColormap
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
@@ -14,46 +16,29 @@ from sklearn.metrics import (
     f1_score,
 )
 
-# ==============================================================================
 # PASO 1: Cargar el dataset
-# ==============================================================================
 nombre_archivo = "pokemon_complete_stats.csv"
 df = pd.read_csv(nombre_archivo)
-print(f"📊 Dataset cargado: {len(df)} registros totales.")
+print(f"Dataset cargado: {len(df)} registros totales.")
 
-# ==============================================================================
 # PASO 2: Definir variables predictoras (features) y variable objetivo (target)
-# ==============================================================================
 features = [
-    "hp",
-    "attack",
-    "defense",
-    "special_attack",
-    "special_defense",
-    "speed",
-    "height_dm",
-    "weight_hg",
     "base_experience",
+    "special_attack",
 ]
 target = "is_legendary"
 
-# ==============================================================================
 # PASO 3: Descartar filas con valores nulos (49 pokémon incompletos)
-# ==============================================================================
 df_limpio = df.dropna(subset=features + [target]).copy()
 filas_descartadas = len(df) - len(df_limpio)
-print(f"🧹 Filas descartadas con nulos: {filas_descartadas}")
-print(f"✅ Filas limpias disponibles: {len(df_limpio)}")
+print(f"Filas descartadas con nulos: {filas_descartadas}")
+print(f"Filas limpias disponibles: {len(df_limpio)}")
 
-# ==============================================================================
 # PASO 4: Construir matrices X (características) e y (etiquetas 0 y 1)
-# ==============================================================================
 X = df_limpio[features].copy()
 y = df_limpio[target].astype(int)
 
-# ==============================================================================
 # PASO 5: División en Entrenamiento (Train) y Prueba (Test)
-# ==============================================================================
 # stratify=y preserva la proporción del target (~9% legendarios)
 X_train, X_test, y_train, y_test = train_test_split(
     X,
@@ -63,22 +48,18 @@ X_train, X_test, y_train, y_test = train_test_split(
     stratify=y
 )
 
-print("\n📂 División de datos:")
+print("\n División de datos:")
 print(f"   - Entrenamiento: {X_train.shape[0]} muestras")
 print(f"   - Prueba (Test): {X_test.shape[0]} muestras")
 
-# ==============================================================================
 # PASO 6: Escalado de características (StandardScaler)
-# ==============================================================================
 # fit_transform() SOLO en Train, transform() en Test (evita data leakage)
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
-print("⚖️  Características escaladas correctamente (media ~0, varianza ~1).")
+print("Características escaladas correctamente (media ~0, varianza ~1).")
 
-# ==============================================================================
 # PASO 7: FASE 3 - Entrenamiento y evaluación de diferentes kernels
-# ==============================================================================
 modelos = {
     "RBF (Base)": SVC(kernel="rbf", class_weight="balanced", random_state=42),
     "Lineal": SVC(kernel="linear", class_weight="balanced", random_state=42),
@@ -121,19 +102,15 @@ for nombre, modelo in modelos.items():
         "Falsos Negativos (FN)": fn,
     })
 
-# ==============================================================================
 # PASO 8: Tabla resumen comparativa
-# ==============================================================================
 df_comparativa = pd.DataFrame(tabla_metricas)
 print("\n" + "=" * 70)
-print("📊 RESUMEN COMPARATIVO DE KERNELS (FASE 3)")
+print("RESUMEN COMPARATIVO DE KERNELS (FASE 3)")
 print("=" * 70)
 print(df_comparativa.to_string(index=False))
 print("=" * 70)
 
-# ==============================================================================
 # PASO 9: Visualización gráfica comparativa
-# ==============================================================================
 # 3 matrices de confusión + 1 gráfico con curvas ROC superpuestas
 fig, axes = plt.subplots(1, 4, figsize=(22, 5))
 
@@ -163,5 +140,41 @@ axes[3].legend()
 plt.tight_layout()
 archivo_grafico = "evaluacion_kernels_comparativa.png"
 plt.savefig(archivo_grafico, dpi=200)
-print(f"\n📈 Gráficos comparativos guardados como '{archivo_grafico}'.")
+print(f"\nGráficos comparativos guardados como '{archivo_grafico}'.")
+
+# PASO 10: Gráfico de Fronteras de Decisión en 2D (Conjunto de Test)
+
+fig2, axes2 = plt.subplots(1, 3, figsize=(18, 5))
+
+# Preparar la cuadrícula (meshgrid) usando el conjunto de test escalado
+X1, X2 = np.meshgrid(
+    np.arange(start=X_test_scaled[:, 0].min() - 1, stop=X_test_scaled[:, 0].max() + 1, step=0.05),
+    np.arange(start=X_test_scaled[:, 1].min() - 1, stop=X_test_scaled[:, 1].max() + 1, step=0.05)
+)
+
+for idx, (nombre, modelo) in enumerate(modelos.items()):
+    ax = axes2[idx]
+
+    # Predecir sobre la cuadrícula
+    Z = modelo.predict(np.array([X1.ravel(), X2.ravel()]).T)
+    Z = Z.reshape(X1.shape)
+
+    # Dibujar la frontera (fondo rojo/verde)
+    ax.contourf(X1, X2, Z, alpha=0.5, cmap=ListedColormap(('red', 'green')))
+
+    # Dibujar los puntos reales del test
+    for i, class_val in enumerate(np.unique(y_test)):
+        ax.scatter(X_test_scaled[y_test == class_val, 0], X_test_scaled[y_test == class_val, 1],
+                   color=ListedColormap(('red', 'green'))(i), label=target_names[i], edgecolors='k')
+
+    ax.set_title(f"Frontera: {nombre}")
+    ax.set_xlabel('Experiencia Base (Escalado)')
+    ax.set_ylabel('Ataque Especial (Escalado)')
+    ax.legend()
+
+plt.tight_layout()
+archivo_fronteras = "fronteras_decision.png"
+plt.savefig(archivo_fronteras, dpi=200)
+print(f"\nGráficos de fronteras de decisión guardados como '{archivo_fronteras}'.")
+
 plt.show()

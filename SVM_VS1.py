@@ -15,15 +15,8 @@ print(f"Dimensiones iniciales del dataset: {filas_iniciales} filas.")
 # 2. Definir columnas de interés
 # ------------------------------------------------------------------------------
 features = [
-    "hp",
-    "attack",
-    "defense",
-    "special_attack",
-    "special_defense",
-    "speed",
-    "height_dm",
-    "weight_hg",
     "base_experience",
+    "special_attack",
 ]
 target = "is_legendary"
 
