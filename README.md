@@ -1,52 +1,44 @@
 # Clasificación de Pokémon Legendarios con SVM
 
-Este proyecto implementa un modelo de Machine Learning supervisado basado en **Support Vector Machines (SVM)** para predecir si un Pokémon es legendario (`is_legendary`) a partir de sus estadísticas físicas y de combate numéricas.
-
----
+Este proyecto implementa un modelo de Machine Learning supervisado basado en Support Vector Machines (SVM) para predecir si un Pokémon es legendario (`is_legendary`) a partir de sus estadísticas de combate numéricas.
 
 ## Procedimiento General del Proyecto
 
 ### Fase 1: Carga y Preparación de Datos
-1. **Carga del dataset:** Lectura de `pokemon_complete_stats.csv`.
-2. **Selección de variables:**
-   * **Predictoras ($X$):** 9 características numéricas (`hp`, `attack`, `defense`, `special_attack`, `special_defense`, `speed`, `height_dm`, `weight_hg`, `base_experience`).
-   * **Objetivo ($y$):** `is_legendary` (0 = Común, 1 = Legendario).
-3. **Limpieza de valores nulos:** Se descartan los 49 Pokémon incompletos en `base_experience` para garantizar datos 100% limpios y sincronizados (1302 registros finales).
+1. **Carga del dataset:** Lectura del archivo `pokemon_complete_stats.csv`.
+2. **Selección de variables:** Para evitar un modelo innecesariamente complejo y permitir una correcta interpretación visual mediante gráficos de 2 dimensiones, se realizó una reducción de características para utilizar únicamente las 2 variables de mayor impacto predictivo:
+   * **Predictoras ($X$):** `base_experience` (Experiencia Base) y `special_attack` (Ataque Especial).
+   * **Objetivo ($y$):** `is_legendary` (0 = No Legendario, 1 = Legendario).
+3. **Limpieza de valores nulos:** Se descartaron los registros con datos incompletos en las variables de interés, garantizando la calidad del entrenamiento.
 
 ### Fase 2: Particionado y Escalado
-4. **División Train / Test (80% / 20%):** Con **estratificación** (`stratify=y`) para mantener la proporción de legendarios (~9%) en ambos conjuntos.
-5. **Estandarización (`StandardScaler`):** Ajuste (`fit_transform`) exclusivamente en Train y transformación (`transform`) en Test para prevenir fuga de datos (*data leakage*).
+4. **División Train / Test (80% / 20%):** Se realizó la separación de datos aplicando estratificación (`stratify=y`) para mantener la proporción de la clase minoritaria (legendarios, ~9%) equitativa en ambos conjuntos.
+5. **Estandarización (`StandardScaler`):** Se ajustaron los datos (`fit_transform`) exclusivamente sobre el conjunto de entrenamiento y luego se transformó el conjunto de prueba para prevenir la fuga de información (*data leakage*).
 
 ### Fase 3: Experimentación y Comparativa de Kernels
-Se evalúan 3 configuraciones de kernel, todas con `class_weight='balanced'` debido al desbalance de clases:
+Se entrenaron y evaluaron 3 configuraciones de kernel. En todas se aplicó el parámetro `class_weight='balanced'` para contrarrestar de forma automática el desbalance natural de las clases:
 
 | Kernel | Geometría de la Frontera | Falsos Positivos (FP) | Falsos Negativos (FN) | Recall (Legendarios) | F1-Score | Accuracy |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **RBF (Base)** | Campanas gaussianas locales (espacio de dimensión infinita) | 24 | 5 | 79.2% | 0.567 | 88.9% |
-| **Lineal** | Hiperplano plano en el espacio original | 37 | **1** | **95.8%** | 0.548 | 85.4% |
-| **Polinomial (Grado 3)** | Curvas suaves por combinaciones multiplicativas de variables | **24** | **3** | **87.5%** | **0.609** | **89.7%** |
-
----
+| **RBF (Base)** | Campanas gaussianas locales | 29 | 1 | 95.8% | 0.605 | 88.5% |
+| **Lineal** | Hiperplano (línea recta en 2D) | 42 | **0** | **100.0%** | 0.533 | 83.9% |
+| **Polinomial (Grado 3)** | Curvas suaves y polinómicas | **21** | 2 | 91.7% | **0.657** | **91.2%** |
 
 ## Métricas Clave y Conclusiones 
 
-* **¿Por qué no guiarse solo por Accuracy?** Al haber solo un ~9% de Pokémon legendarios, un clasificador ingenuo tendría 91% de exactitud sin predecir ningún legendario.
-* **Recall (Sensibilidad):** El **Kernel Lineal** obtiene el valor más alto (**95.8%**, solo 1 falso negativo), ideal si la prioridad absoluta es no perder ningún legendario a costa de falsas alarmas (37 falsos positivos).
-* **F1-Score (Balance óptimo):** El **Kernel Polinomial de grado 3** es el **mejor modelo global** con un F1 de **0.609**, reduciendo los falsos negativos a solo 3 y manteniendo bajos los falsos positivos (24).
-
----
+* **El problema de la Precisión Global (Accuracy):** Al haber solo un ~9% de Pokémon legendarios en el dataset, guiarse solo por el Accuracy es engañoso. Un modelo que prediga que *ningún* Pokémon es legendario obtendría un 91% de exactitud a pesar de ser inútil.
+* **Recall (Sensibilidad):** El **Kernel Lineal** obtiene un desempeño perfecto detectando legendarios (Recall 100%, 0 falsos negativos), asegurando que no se pierda ninguno, aunque a un gran costo: clasifica a 42 Pokémon comunes como legendarios (falsos positivos).
+* **F1-Score (Equilibrio):** El **Kernel Polinomial de grado 3** resulta ser el modelo más robusto y equilibrado para este problema. Con el mejor puntaje F1 (0.657), logra mantener extremadamente bajos tanto los falsos negativos (2) como los falsos positivos (21), obteniendo simultáneamente la mejor exactitud global (91.2%).
 
 ## Visualización Gráfica
 
-El script genera automáticamente el archivo `evaluacion_kernels_comparativa.png` que reúne las matrices de confusión de cada kernel y la comparación directa de sus curvas ROC:
-
-![Comparativa de Kernels](evaluacion_kernels_comparativa.png)
-
----
+El proyecto genera dos visualizaciones principales para facilitar la interpretación del rendimiento espacial y métrico del modelo:
+1. **Fronteras de Decisión en 2D (`fronteras_decision.png`):** Utiliza la técnica de *meshgrid* para colorear las áreas del plano en las que el modelo predice cada clase. Permite observar claramente la forma de la región de decisión establecida por cada kernel sobre las variables `base_experience` y `special_attack`, junto con el posicionamiento real de los datos del conjunto de pruebas.
+2. **Comparativa de Kernels (`evaluacion_kernels_comparativa.png`):** Un panel que reúne las matrices de confusión generadas por las predicciones de cada kernel junto con una gráfica de curvas ROC superpuestas para contrastar el área bajo la curva (AUC).
 
 ## Ejecución del Proyecto
 
 ```bash
 python3 practicaSVM.py
 ```
-El script mostrará las métricas paso a paso en la terminal, imprimirá la tabla comparativa final y abrirá la visualización gráfica de resultados.
+Durante la ejecución, la terminal mostrará la salida de la limpieza de datos, las dimensiones de la división, reportes de clasificación detallados (precision, recall, f1-score) y matrices de confusión en modo texto para cada kernel evaluado. Finalmente, se guardarán y desplegarán automáticamente en pantalla las dos imágenes comparativas mencionadas en el apartado gráfico.
